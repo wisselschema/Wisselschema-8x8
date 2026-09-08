@@ -6,6 +6,8 @@ const POS11_433=[['GK','GK'],['LA','LA'],['MAL','MAL'],['MAR','MAR'],['RA','RA']
 const POS11_442=[['GK','GK'],['LA','LA'],['MAL','MAL'],['MAR','MAR'],['RA','RA'],['LM','LM'],['LMM','LMM'],['RMM','RMM'],['RM','RM'],['LV','LV'],['RV','RV']];
 let S={screen:'start',role:null,format:null,names:[],field:[],bench:[],durations:[],period:0,remaining:0,running:false,lastTick:0,swapInterval:5,swapRemaining:300,swapAlert:false,home:'HDS',away:'Tegenstander',score:[0,0],play:{},history:[],wake:null,formation:'1-4-3-3'};
 const app=document.getElementById('app');
+let audioCtx=null;
+function primeAudio(){try{let AC=window.AudioContext||window.webkitAudioContext;if(!AC)return false;if(!audioCtx)audioCtx=new AC();if(audioCtx.state==='suspended')audioCtx.resume();let o=audioCtx.createOscillator(),g=audioCtx.createGain();g.gain.setValueAtTime(0.0001,audioCtx.currentTime);o.connect(g);g.connect(audioCtx.destination);o.start();o.stop(audioCtx.currentTime+0.02);return true}catch(e){return false}}
 function esc(x){return String(x??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
 function posList(){return S.format==='8x8'?POS8:(S.formation==='1-4-4-2'?POS11_442:POS11_433)} function mins(s){return Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0')} function defaultDur(){return S.format==='8x8'?[1800,1800]:[1050,1050,1050,1050]}
 function render(){if(S.screen==='start')return start();if(S.screen==='setup')return setup();if(S.screen==='match')return match();}
@@ -19,13 +21,29 @@ function nameInputs(){return S.names.map((n,i)=>{let ph=i===0?'Speler 1 – keep
 function resizeNames(v){v=+v||(S.format==='8x8'?9:12);document.querySelectorAll('#names input').forEach((el,i)=>{if(i<S.names.length)S.names[i]=el.value});while(S.names.length<v)S.names.push('');S.names.length=v;document.getElementById('names').innerHTML=nameInputs()}
 function refSetup(){return app.innerHTML=`<div class="between"><button class="secondary small" onclick="chooseRole('ref')">← Terug</button><b>Scheidsrechter ${S.format}</b></div><div class="card"><div class="sectiontitle">Teams en score</div><div class="grid2"><div><div class="label">Thuis</div><input id="home" value="${esc(S.home)}"></div><div><div class="label">Uit</div><input id="away" value="${esc(S.away)}"></div></div></div><div class="card"><div class="sectiontitle">Speeltijd per ${S.format==='8x8'?'helft':'kwart'}</div>${durationSelect()}</div><button style="width:100%" onclick="startRef()">Start wedstrijd</button>`}
 function setupState(){S.home=document.getElementById('home').value||'Thuis';S.away=document.getElementById('away').value||'Uit';let d=+document.getElementById('duration').value;S.durations=Array(S.format==='8x8'?2:4).fill(d);S.period=0;S.remaining=S.durations[0];S.running=false;S.swapRemaining=S.swapInterval*60;S.swapAlert=false;S.score=[0,0];S.history=[]}
-function startCoach(){if(S.format==='11x11')S.formation=document.getElementById('formation').value;setupState();S.names=[...S.names.map((_,i)=>document.getElementById('n'+i).value.trim()||('Speler '+(i+1)))];S.field=posList().map((p,i)=>({name:S.names[i],pos:p[0]}));S.bench=S.names.slice(posList().length).map((name)=>({name,pos:null}));S.play={};S.names.forEach(n=>S.play[n]=0);if(S.format==='8x8')S.swapInterval=+document.getElementById('interval').value;S.screen='match';render()}
-function startRef(){setupState();S.screen='match';render()}
-function signal(){try{navigator.vibrate&&navigator.vibrate([250,120,500])}catch(e){}try{let c=new (window.AudioContext||window.webkitAudioContext)(),o=c.createOscillator(),g=c.createGain();o.connect(g);g.connect(c.destination);o.frequency.value=880;g.gain.value=.25;o.start();o.stop(c.currentTime+.7)}catch(e){}}
+function startCoach(){primeAudio();if(S.format==='11x11')S.formation=document.getElementById('formation').value;setupState();S.names=[...S.names.map((_,i)=>document.getElementById('n'+i).value.trim()||('Speler '+(i+1)))];S.field=posList().map((p,i)=>({name:S.names[i],pos:p[0]}));S.bench=S.names.slice(posList().length).map((name)=>({name,pos:null}));S.play={};S.names.forEach(n=>S.play[n]=0);if(S.format==='8x8')S.swapInterval=+document.getElementById('interval').value;S.screen='match';render()}
+function startRef(){primeAudio();setupState();S.screen='match';render()}
+function signal(){
+  try{if(navigator.vibrate)navigator.vibrate([300,140,300,140,700])}catch(e){}
+  try{
+    if(!primeAudio()||!audioCtx)return;
+    const now=audioCtx.currentTime+0.03;
+    [[0,0.38,740],[0.5,0.38,740],[1.0,0.9,980]].forEach(([delay,dur,freq])=>{
+      const o=audioCtx.createOscillator(),g=audioCtx.createGain();
+      o.type='square';o.frequency.setValueAtTime(freq,now+delay);
+      g.gain.setValueAtTime(0.0001,now+delay);
+      g.gain.exponentialRampToValueAtTime(0.38,now+delay+0.02);
+      g.gain.setValueAtTime(0.38,now+delay+Math.max(0.03,dur-0.08));
+      g.gain.exponentialRampToValueAtTime(0.0001,now+delay+dur);
+      o.connect(g);g.connect(audioCtx.destination);o.start(now+delay);o.stop(now+delay+dur+0.03);
+    });
+  }catch(e){}
+}
+function testSignal(){primeAudio();signal()}
 async function wake(on){try{if(on&&navigator.wakeLock)S.wake=await navigator.wakeLock.request('screen');if(!on&&S.wake){await S.wake.release();S.wake=null}}catch(e){}}
 function updateLive(){let t=document.getElementById('matchTimer');if(t)t.textContent=mins(S.remaining);let sc=document.getElementById('swapCountdown');if(sc)sc.textContent='Volgende wissel na '+Math.ceil(S.swapRemaining/60)+' min';let sa=document.getElementById('swapAlert');if(sa)sa.style.display=S.swapAlert?'block':'none';let pa=document.getElementById('periodAlert');if(pa)pa.style.display=S.remaining<=0?'block':'none'}function tick(){if(!S.running)return;let now=Date.now(),dt=(now-S.lastTick)/1000;S.lastTick=now;S.remaining=Math.max(0,S.remaining-dt);if(S.role==='coach'){S.field.forEach(p=>S.play[p.name]=(S.play[p.name]||0)+dt);if(S.format==='8x8'){S.swapRemaining=Math.max(0,S.swapRemaining-dt);if(S.swapRemaining<=0&&!S.swapAlert){S.swapAlert=true;signal()}}}if(S.remaining<=0){S.running=false;wake(false);signal();S.swapAlert=false}updateLive();}
 setInterval(()=>{if(S.running)tick()},500);
-function toggleRun(){if(S.remaining<=0)return;if(!S.running){S.running=true;S.lastTick=Date.now();wake(true)}else{tick();S.running=false;wake(false)}render()}
+function toggleRun(){primeAudio();if(S.remaining<=0)return;if(!S.running){S.running=true;S.lastTick=Date.now();wake(true)}else{tick();S.running=false;wake(false)}render()}
 function nextPeriod(){if(S.period+1>=S.durations.length)return;S.period++;S.remaining=S.durations[S.period];S.running=false;S.swapAlert=false;S.swapRemaining=S.swapInterval*60;render()}
 function score(i,d){S.score[i]=Math.max(0,S.score[i]+d);render()}
 function match(){return S.role==='ref'?refMatch():coachMatch()}
@@ -38,7 +56,7 @@ function manualForm(){return `<div class="label">Wie eruit?</div><select id="out
 function manualSwap(){let op=S.field.find(p=>p.pos===document.getElementById('outSel').value),i=+document.getElementById('inSel').value;if(!op||!S.bench[i])return;let incoming=S.bench[i],out={...op};incoming={name:incoming.name,pos:op.pos};S.field=S.field.map(p=>p===op?incoming:p);S.bench=S.bench.filter((_,j)=>j!==i);S.bench.push({name:out.name,pos:null});S.history.push({type:'manual',out:out.name,in:incoming.name,pos:out.pos});S.swapRemaining=S.swapInterval*60;S.swapAlert=false;render()}
 function fixedSwap(){if(S.format!=='8x8'||S.bench.length===0)return;let order=['LA','MA','RA','ML','MR','LV','RV'];let inc=S.bench.shift(),out=S.field.find(p=>p.pos==='RV');if(!inc||!out)return;let outName=out.name;for(let i=order.length-1;i>0;i--){let from=S.field.find(p=>p.pos===order[i-1]);let to=S.field.find(p=>p.pos===order[i]);to.name=from.name}S.field.find(p=>p.pos==='LA').name=inc.name;S.bench.push({name:outName,pos:null});S.swapRemaining=S.swapInterval*60;S.swapAlert=false;S.history.push({type:'fixed',out:outName,in:inc.name});render()}
 function swapPositions(){let a=document.getElementById('posA').value,b=document.getElementById('posB').value;if(a===b)return;let pa=S.field.find(p=>p.pos===a),pb=S.field.find(p=>p.pos===b);[pa.name,pb.name]=[pb.name,pa.name];render()}
-function refMatch(){return app.innerHTML=`<div class="between"><b>Scheidsrechter ${S.format}</b><button class="secondary small" onclick="home()">Menu</button></div>${scoreUI()}${timerUI()}<div class="card"><div class="sectiontitle">Signaal</div><div class="sub">Bij einde periode klinkt een geluid en trilt de telefoon. De klok stopt automatisch.</div></div><div class="card"><div class="sectiontitle">Opslaan / exporteren</div><div class="grid2"><button onclick="saveMatch()">Opslaan</button><button class="secondary" onclick="exportMatch()">Export JSON</button></div><button class="secondary" style="width:100%;margin-top:8px" onclick="savedList()">Opgeslagen wedstrijden</button></div>`}
+function refMatch(){return app.innerHTML=`<div class="between"><b>Scheidsrechter ${S.format}</b><button class="secondary small" onclick="home()">Menu</button></div>${scoreUI()}${timerUI()}<div class="card"><div class="sectiontitle">Signaal</div><div class="sub">Bij het einde van een helft of kwart klinkt een duidelijk eindsignaal. Trillen wordt gebruikt als de browser dit ondersteunt.</div><button class="secondary" style="width:100%" onclick="testSignal()">🔊 Test eindsignaal</button></div><div class="card"><div class="sectiontitle">Opslaan / exporteren</div><div class="grid2"><button onclick="saveMatch()">Opslaan</button><button class="secondary" onclick="exportMatch()">Export JSON</button></div><button class="secondary" style="width:100%;margin-top:8px" onclick="savedList()">Opgeslagen wedstrijden</button></div>`}
 function home(){S.screen='start';render()}
 function saveMatch(){let a=JSON.parse(localStorage.getItem('hockeySaved')||'[]');a.unshift({...S,savedAt:new Date().toISOString(),running:false,wake:null});localStorage.setItem('hockeySaved',JSON.stringify(a.slice(0,30)));alert('Wedstrijd opgeslagen op dit apparaat.');}
 function exportMatch(){let blob=new Blob([JSON.stringify({...S,running:false,wake:null},null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='hockey-wisselcoach-wedstrijd.json';a.click();URL.revokeObjectURL(a.href)}
