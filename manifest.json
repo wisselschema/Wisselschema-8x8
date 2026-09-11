@@ -1,9 +1,11 @@
 {
   "name": "Hockey App",
-  "short_name": "Wisselcoach",
+  "short_name": "Hockey App",
   "start_url": "./",
   "display": "standalone",
   "background_color": "#f4f6f5",
   "theme_color": "#087a3d",
-  "icons": [{"src":"logo.png","sizes":"any","type":"image/png"}]
+  "icons": [
+    {"src": "logo.png", "sizes": "any", "type": "image/png"}
+  ]
 }
